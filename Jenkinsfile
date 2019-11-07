@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         registryCredential = "dockerhub"
+        registry = "wdalmut/sky-app1"
     }
 
     stages {
@@ -20,7 +21,7 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    dockerImage = docker.build "wdalmut/sky-app1:$BUILD_NUMBER"
+                    dockerImage = docker.build registry + ":$BUILD_NUMBER"
                 }
             }
         }
@@ -30,6 +31,42 @@ pipeline {
                     docker.withRegistry( '', registryCredential ) {
                         dockerImage.push()
                     }
+                }
+            }
+        }
+        stage('propose changes for Development') {
+            agent any
+            when {
+                branch 'master'
+            }
+            environment {
+                PR_NUMBER = "build-$BUILD_NUMBER"
+            }
+            steps {
+                git branch: 'master', credentialsId: 'github', url: 'git@github.com:testing-field/infra-dev.git'
+                sh 'git config --global user.email "walter.dalmut@gmail.com"'
+                sh 'git config --global user.name "Walter Dal Mut"'
+
+                sh "git checkout -b feature/${PR_NUMBER}"
+
+                sh 'kubectl patch -f app1/app.yaml -p \'{"spec":{"template":{"spec":{"containers":[{"name":"hello-pod","image":"'+ registry+":${BUILD_NUMBER}" +'"}]}}}}\' --local -o yaml | tee /tmp/app1.yaml'
+                sh 'mv /tmp/app1.yaml app1/app.yaml'
+
+                sh 'git add app1/app.yaml'
+
+                sh 'git commit -m "[JENKINS-CI] - new application release"'
+
+                sshagent(['github']) {
+                    sh("""
+                        #!/usr/bin/env bash
+                        set +x
+                        export GIT_SSH_COMMAND="ssh -oStrictHostKeyChecking=no"
+                        git push origin feature/${PR_NUMBER}
+                     """)
+                }
+
+                withCredentials([string(credentialsId: 'github_token', variable: 'GITHUB_TOKEN')]) {
+                    sh 'hub pull-request -m "[JENKINS-CI] - Pull Request for image: "'+registry+":${BUILD_NUMBER}"
                 }
             }
         }
