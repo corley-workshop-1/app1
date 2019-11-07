@@ -13,5 +13,12 @@ pipeline {
                 sh 'npm test'
             }
         }
+        stage('Build') {
+            steps {
+                script {
+                    dockerImage = docker.build "wdalmut/sky-app1:$BUILD_NUMBER"
+                }
+            }
+        }
     }
 }
