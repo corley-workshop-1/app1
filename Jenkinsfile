@@ -1,6 +1,10 @@
 pipeline {
     agent none
 
+    environment {
+        registryCredential = "dockerhub"
+    }
+
     stages {
         stage('Test') {
             agent {
@@ -17,6 +21,15 @@ pipeline {
             steps {
                 script {
                     dockerImage = docker.build "wdalmut/sky-app1:$BUILD_NUMBER"
+                }
+            }
+        }
+        stage('Push Image') {
+            steps {
+                script {
+                    docker.withRegistry( '', registryCredential ) {
+                        dockerImage.push()
+                    }
                 }
             }
         }
