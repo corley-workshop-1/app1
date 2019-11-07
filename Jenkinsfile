@@ -9,7 +9,6 @@ pipeline {
 
             steps {
                 sh 'node --version'
-                sh 'node --version'
                 sh 'npm i'
                 sh 'npm test'
             }
